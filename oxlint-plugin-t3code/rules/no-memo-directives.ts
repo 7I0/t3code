@@ -13,7 +13,7 @@ export default defineRule({
   create(context) {
     return {
       ExpressionStatement(node) {
-        if (node.directive === undefined || !MEMO_DIRECTIVES.has(node.directive)) return;
+        if (typeof node.directive !== "string" || !MEMO_DIRECTIVES.has(node.directive)) return;
         context.report({
           node,
           message: `Drop "${node.directive}": fix the code the compiler cannot prove safe instead of forcing or skipping memoization.`,
