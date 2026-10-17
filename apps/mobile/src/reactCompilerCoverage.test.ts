@@ -128,13 +128,16 @@ const sourceFiles = NodeFS.readdirSync(NodePath.join(mobileRoot, "src"), { recur
   .map((file) => `src/${file.split(NodePath.sep).join("/")}`)
   .sort();
 
+type CompilerLoc = { readonly start?: { readonly line?: number } } | null;
+
 interface CompilerEvent {
   readonly kind: string;
   readonly detail?: {
     readonly options?: {
       readonly category?: string;
       readonly reason?: string;
-      readonly loc?: { readonly start?: { readonly line?: number } } | null;
+      readonly loc?: CompilerLoc;
+      readonly details?: readonly { readonly loc?: CompilerLoc }[];
     };
   };
 }
@@ -169,7 +172,7 @@ function compilerBailouts(file: string): string[] {
     .filter((event) => event.kind === "CompileError" || event.kind === "CompileSkip")
     .map(
       (event) =>
-        `line ${event.detail?.options?.loc?.start?.line ?? "?"}: ${event.detail?.options?.category ?? event.kind} ${event.detail?.options?.reason ?? ""}`,
+        `line ${(event.detail?.options?.loc ?? event.detail?.options?.details?.[0]?.loc)?.start?.line ?? "?"}: ${event.detail?.options?.category ?? event.kind} ${event.detail?.options?.reason ?? ""}`,
     );
 }
 
