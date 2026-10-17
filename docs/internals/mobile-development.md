@@ -46,4 +46,5 @@ same preset over every source file. It fails on a new bailout, and on a file in 
 that now compiles, so the list only shrinks. When you fix a listed file, delete its entry and its
 manual `useMemo`/`useCallback`/`memo` in the same change. Most mobile bailouts are `try` without
 `catch` or with `finally`, and refs read during render; see [Web UI](web-ui.md#react-compiler)
-for the usual rewrites.
+for the usual rewrites. Mobile runs `t3code/no-manual-memo` with `allowMemoHooks`, so memo
+directives are errors but the hooks stay legal until `KNOWN_BAILOUTS` is empty.

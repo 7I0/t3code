@@ -363,9 +363,10 @@ export default defineConfig({
       },
       {
         // Mobile is ratcheting toward full React Compiler coverage
-        // (apps/mobile/src/reactCompilerCoverage.test.ts). Directives would hide bailouts from it.
+        // (apps/mobile/src/reactCompilerCoverage.test.ts). Directives would hide bailouts from it;
+        // the manual memo hooks go once the allowlist there is empty.
         files: ["apps/mobile/src/**/*.{ts,tsx}"],
-        rules: { "t3code/no-memo-directives": "error" },
+        rules: { "t3code/no-manual-memo": ["error", { allowMemoHooks: true }] },
       },
       {
         files: [
