@@ -412,6 +412,87 @@ describe("handoff budget", () => {
 });
 
 describe("handoff delivery", () => {
+  it.effect("delivers intact history when a million-token native thread has room", () =>
+    Effect.gen(function* () {
+      const userText = "Continue exactly where you left off.";
+      const target = {
+        ...providerThread,
+        driver: ProviderDriverKind.make("claudeAgent"),
+        providerInstanceId: ProviderInstanceId.make("claude-secondary"),
+        nativeThreadRef: {
+          driver: ProviderDriverKind.make("claudeAgent"),
+          strength: "strong" as const,
+          nativeId: "native:secondary",
+        },
+        contextUsage: { usedTokens: 775_260, maxTokens: 1_000_000 },
+      };
+      const budget = handoffBudget({
+        tokenCap: 16_000,
+        userText,
+        attachments: [],
+        providerThread: target,
+        nativeContextEstimate: 0,
+        modelContextWindow: 1_000_000,
+      });
+      assert.equal(budget, 16_000);
+      let durable = handoff;
+      const delivery = yield* deliverContextHandoffs({
+        handoffs: [handoff],
+        providerThread: target,
+        budget,
+        alreadyDeliveredItemIds: new Set(),
+        persist: (value) =>
+          Effect.sync(() => {
+            durable = value;
+          }),
+      });
+      assert.include(delivery.context, messages[0]!.text);
+      assert.include(delivery.context, messages[1]!.text);
+      assert.include(delivery.context, "Selected 2 intact items; omitted 0 items");
+      assert.notInclude(delivery.context, userText);
+      yield* delivery.delivered;
+      assert.deepEqual(
+        durable.delivery?.itemIds,
+        messages.map((item) => item.itemId),
+      );
+      assert.deepEqual(durable.delivery?.omittedItemIds, []);
+      assert.equal(durable.delivery?.status, "inline");
+
+      assert.equal(
+        handoffBudget({
+          tokenCap: 16_000,
+          userText,
+          attachments: [],
+          providerThread: {
+            ...target,
+            contextUsage: { usedTokens: 970_000, maxTokens: 1_000_000 },
+          },
+          nativeContextEstimate: 0,
+          modelContextWindow: 1_000_000,
+        }),
+        0,
+      );
+      assert.equal(
+        handoffBudget({
+          tokenCap: 16_000,
+          userText,
+          attachments: [],
+          providerThread: {
+            ...target,
+            contextUsage: {
+              usedTokens: 775_260,
+              maxTokens: 1_000_000,
+              autoCompactThreshold: 800_000,
+            },
+          },
+          nativeContextEstimate: 0,
+          modelContextWindow: 1_000_000,
+        }),
+        0,
+      );
+    }),
+  );
+
   it.effect.each([
     { native: true, label: "injected" },
     { native: false, label: "inline" },

@@ -13,6 +13,9 @@ import * as Config from "effect/Config";
 
 export const DEFAULT_HANDOFF_TOKEN_CAP = 16_000;
 const HANDOFF_BYTE_CAP = 64_000;
+// A quarter of a million-token window can exceed its reported free context,
+// preventing a small handoff before the provider can start work or compact.
+const HANDOFF_WORK_RESERVE_CAP = 64_000;
 export const handoffTokenCapConfig = Config.Int("T3CODE_CONTEXT_HANDOFF_TOKEN_CAP").pipe(
   Config.withDefault(DEFAULT_HANDOFF_TOKEN_CAP),
   Config.map((value) => Math.max(1_024, Math.min(HANDOFF_BYTE_CAP, value))),
@@ -123,6 +126,7 @@ export function handoffBudget(input: {
   const native = usage?.usedTokens ?? input.nativeContextEstimate;
   const current =
     Buffer.byteLength(JSON.stringify(input.userText)) + attachmentTokenAllowance(input.attachments);
+  const workReserve = Math.min(HANDOFF_WORK_RESERVE_CAP, Math.max(16_000, Math.ceil(window / 4)));
   return Math.max(
     0,
     Math.min(
@@ -130,7 +134,7 @@ export function handoffBudget(input: {
       // Cap only imported history. Attachment transport limits belong to adapters;
       // they may send binary/base64 data separately from the history request.
       HANDOFF_BYTE_CAP,
-      window - native - current - Math.max(16_000, Math.ceil(window / 4)),
+      window - native - current - workReserve,
     ),
   );
 }
