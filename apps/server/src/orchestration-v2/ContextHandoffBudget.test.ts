@@ -412,29 +412,21 @@ describe("handoff budget", () => {
 });
 
 describe("handoff delivery", () => {
-  it.effect("delivers intact history when a million-token native thread has room", () =>
+  it.effect("delivers intact history with a bounded reserve in a million-token native thread", () =>
     Effect.gen(function* () {
-      const userText = "Continue exactly where you left off.";
       const target = {
         ...providerThread,
-        driver: ProviderDriverKind.make("claudeAgent"),
-        providerInstanceId: ProviderInstanceId.make("claude-secondary"),
-        nativeThreadRef: {
-          driver: ProviderDriverKind.make("claudeAgent"),
-          strength: "strong" as const,
-          nativeId: "native:secondary",
-        },
         contextUsage: { usedTokens: 775_260, maxTokens: 1_000_000 },
       };
-      const budget = handoffBudget({
+      const input = {
         tokenCap: 16_000,
-        userText,
+        userText: "Continue",
         attachments: [],
         providerThread: target,
         nativeContextEstimate: 0,
         modelContextWindow: 1_000_000,
-      });
-      assert.equal(budget, 16_000);
+      };
+      const budget = handoffBudget(input);
       let durable = handoff;
       const delivery = yield* deliverContextHandoffs({
         handoffs: [handoff],
@@ -446,50 +438,45 @@ describe("handoff delivery", () => {
             durable = value;
           }),
       });
+      assert.equal(budget, 16_000);
       assert.include(delivery.context, messages[0]!.text);
       assert.include(delivery.context, messages[1]!.text);
       assert.include(delivery.context, "Selected 2 intact items; omitted 0 items");
-      assert.notInclude(delivery.context, userText);
       yield* delivery.delivered;
-      assert.deepEqual(
-        durable.delivery?.itemIds,
-        messages.map((item) => item.itemId),
-      );
-      assert.deepEqual(durable.delivery?.omittedItemIds, []);
-      assert.equal(durable.delivery?.status, "inline");
+      assert.deepEqual(durable.delivery, {
+        nativeThreadId: "native:target",
+        status: "inline",
+        itemIds: messages.map((item) => item.itemId),
+        omittedItemIds: [],
+      });
 
-      assert.equal(
-        handoffBudget({
-          tokenCap: 16_000,
-          userText,
-          attachments: [],
-          providerThread: {
-            ...target,
-            contextUsage: { usedTokens: 970_000, maxTokens: 1_000_000 },
-          },
-          nativeContextEstimate: 0,
-          modelContextWindow: 1_000_000,
-        }),
-        0,
-      );
-      assert.equal(
-        handoffBudget({
-          tokenCap: 16_000,
-          userText,
-          attachments: [],
-          providerThread: {
-            ...target,
-            contextUsage: {
-              usedTokens: 775_260,
-              maxTokens: 1_000_000,
-              autoCompactThreshold: 800_000,
-            },
-          },
-          nativeContextEstimate: 0,
-          modelContextWindow: 1_000_000,
-        }),
-        0,
-      );
+      for (const { contextUsage, expectedBudget } of [
+        {
+          contextUsage: { usedTokens: 970_000, maxTokens: 1_000_000 },
+          expectedBudget: 0,
+        },
+        {
+          contextUsage: { ...target.contextUsage, autoCompactThreshold: 800_000 },
+          expectedBudget: 0,
+        },
+        {
+          contextUsage: { usedTokens: 920_000, maxTokens: 1_000_000 },
+          expectedBudget: 15_990,
+        },
+        {
+          contextUsage: { usedTokens: 0, maxTokens: 32_000 },
+          expectedBudget: 15_990,
+        },
+        {
+          contextUsage: { usedTokens: 60_000, maxTokens: 100_000 },
+          expectedBudget: 14_990,
+        },
+      ]) {
+        assert.equal(
+          handoffBudget({ ...input, providerThread: { ...target, contextUsage } }),
+          expectedBudget,
+        );
+      }
     }),
   );
 

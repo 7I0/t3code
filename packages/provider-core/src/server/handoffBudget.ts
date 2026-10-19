@@ -13,8 +13,7 @@ import * as Config from "effect/Config";
 
 export const DEFAULT_HANDOFF_TOKEN_CAP = 16_000;
 const HANDOFF_BYTE_CAP = 64_000;
-// A quarter of a million-token window can exceed its reported free context,
-// preventing a small handoff before the provider can start work or compact.
+// Bound headroom so large windows can accept history well before they fill up.
 const HANDOFF_WORK_RESERVE_CAP = 64_000;
 export const handoffTokenCapConfig = Config.Int("T3CODE_CONTEXT_HANDOFF_TOKEN_CAP").pipe(
   Config.withDefault(DEFAULT_HANDOFF_TOKEN_CAP),
